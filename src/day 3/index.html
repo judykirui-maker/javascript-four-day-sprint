@@ -1,0 +1,40 @@
+</head>
+<body>
+
+  <h1>My Task Manager</h1>
+
+  <h2>Day 3: Interactive Browser Task Manager</h2>
+
+  <p id="message">Welcome! Let's manage our tasks.</p>
+
+  <button id="change-message-btn">Click Me</button>
+  <form id="task-form">
+  <label for="task-input">Enter a task:</label>
+  <input type="text" id="task-input">
+  <p id="task-error" aria-live="polite"></p>
+  <button type="submit">Add Task</button>
+</form>
+<label for="search-input">Search tasks:</label>
+<input type="search" id="search-input" placeholder="Search tasks">
+<label for="status-filter">Filter tasks:</label>
+
+<select id="status-filter">
+  <option value="all">All</option>
+  <option value="open">Open</option>
+  <option value="completed">Completed</option>
+</select>
+  <script src="app.js"></script>
+
+</body>
+</html>
+const taskForm = document.querySelector("#task-form");
+const taskInput = document.querySelector("#task-input");
+
+taskForm.addEventListener("submit", function (event) {
+  event.preventDefault();
+
+  if (taskInput.value.trim() === "") {
+    alert("Please enter a task!");
+    return;
+  }
+
