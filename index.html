@@ -1,40 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus Board</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <header>
+    <h1>Focus Board</h1>
+    <p>Your personal task planner</p>
+  </header>
 
-  <h1>My Task Manager</h1>
+  <main>
+    <section aria-labelledby="add-heading">
+      <h2 id="add-heading">Add a Task</h2>
+      <form id="task-form">
+        <label for="task-input">Task title</label>
+        <input id="task-input" type="text" maxlength="80" required>
 
-  <h2>Day 3: Interactive Browser Task Manager</h2>
+        <label for="priority-input">Priority</label>
+        <select id="priority-input">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
 
-  <p id="message">Welcome! Let's manage our tasks.</p>
+        <button type="submit">Add Task</button>
+      </form>
+      <p id="task-message" aria-live="polite"></p>
+    </section>
 
-  <button id="change-message-btn">Click Me</button>
-  <form id="task-form">
-  <label for="task-input">Enter a task:</label>
-  <input type="text" id="task-input">
-  <p id="task-error" aria-live="polite"></p>
-  <button type="submit">Add Task</button>
-</form>
-<label for="search-input">Search tasks:</label>
-<input type="search" id="search-input" placeholder="Search tasks">
-<label for="status-filter">Filter tasks:</label>
+    <section aria-labelledby="stats-heading">
+      <h2 id="stats-heading">Task Progress</h2>
+      <p id="task-count">Total: 0</p>
+      <p id="completion-rate">Completed: 0%</p>
+    </section>
 
-<select id="status-filter">
-  <option value="all">All</option>
-  <option value="open">Open</option>
-  <option value="completed">Completed</option>
-</select>
+    <section aria-labelledby="filter-heading">
+      <h2 id="filter-heading">Find Tasks</h2>
+      <label for="search-input">Search</label>
+      <input id="search-input" type="search">
+
+      <label for="status-filter">Status</label>
+      <select id="status-filter">
+        <option value="all">All</option>
+        <option value="open">Open</option>
+        <option value="completed">Completed</option>
+      </select>
+    </section>
+
+    <section aria-labelledby="tasks-heading">
+      <h2 id="tasks-heading">My Tasks</h2>
+      <ul id="task-list"></ul>
+    </section>
+
+    <section aria-labelledby="suggestions-heading">
+      <h2 id="suggestions-heading">Online Suggestions</h2>
+      <button type="button" id="load-suggestions">Load Suggestions</button>
+      <p id="suggestion-status" aria-live="polite"></p>
+      <ul id="suggestion-list"></ul>
+    </section>
+
+    <section aria-labelledby="tools-heading">
+      <h2 id="tools-heading">Task Tools</h2>
+      <button type="button" id="undo-delete">Undo Delete</button>
+      <button type="button" id="export-tasks">Export Tasks</button>
+
+      <label for="import-file">Import Tasks</label>
+      <input type="file" id="import-file" accept=".json,application/json">
+    </section>
+  </main>
+
   <script src="app.js"></script>
-
 </body>
 </html>
-const taskForm = document.querySelector("#task-form");
-const taskInput = document.querySelector("#task-input");
-
-taskForm.addEventListener("submit", function (event) {
-  event.preventDefault();
-
-  if (taskInput.value.trim() === "") {
-    alert("Please enter a task!");
-    return;
-  }
-

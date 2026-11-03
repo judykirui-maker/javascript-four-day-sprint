@@ -1,200 +1,486 @@
-const message = document.querySelector("#message");
+class Task {
+  #completed = false;
 
-console.log(message);
-message.textContent = "JavaScript has changed this message!";
-const button = document.querySelector("#change-message-btn");
+  constructor(id, title, priority = "medium") {
+    if (!title.trim()) {
+      throw new Error("Task title is required");
+    }
 
-button.addEventListener("click", function () {
-  message.textContent = "You clicked the button! Well done!";
-});
+    this.id = id;
+    this.title = title.trim();
+    this.priority = priority;
+  }
+
+  get completed() {
+    return this.#completed;
+  }
+
+  toggle() {
+    this.#completed = !this.#completed;
+  }
+
+  rename(newTitle) {
+    if (!newTitle.trim()) {
+      throw new Error("Task title cannot be blank");
+    }
+
+    this.title = newTitle.trim();
+  }
+
+  describe() {
+    return `${this.title} (${this.priority})`;
+  }
+}
+
+const STORAGE_KEY = "focusBoardTasksV1";
+
 let tasks = [];
 let searchQuery = "";
 let currentFilter = "all";
+let lastDeletedTask = null;
+let suggestionController = null;
+let requestNumber = 0;
+
+const taskForm = document.querySelector("#task-form");
+const taskInput = document.querySelector("#task-input");
+const priorityInput = document.querySelector("#priority-input");
+const taskMessage = document.querySelector("#task-message");
+const taskList = document.querySelector("#task-list");
+const searchInput = document.querySelector("#search-input");
+const statusFilter = document.querySelector("#status-filter");
+const taskCount = document.querySelector("#task-count");
+const completionRate = document.querySelector("#completion-rate");
+const suggestionButton = document.querySelector("#load-suggestions");
+const suggestionStatus = document.querySelector("#suggestion-status");
+const suggestionList = document.querySelector("#suggestion-list");
+const undoButton = document.querySelector("#undo-delete");
+const exportButton = document.querySelector("#export-tasks");
+const importInput = document.querySelector("#import-file");
+
 function saveTasks() {
-  localStorage.setItem("day3Tasks", JSON.stringify(tasks));
-}
-function loadTasks() {
-  const savedTasks = localStorage.getItem("day3Tasks");
-
-  if (savedTasks) {
-    try {
-      const parsedTasks = JSON.parse(savedTasks);
-
-      if (Array.isArray(parsedTasks)) {
-        tasks = parsedTasks;
-      } else {
-        tasks = [];
-      }
-    } catch (error) {
-      tasks = [];
-    }
+  try {
+localStorage.setItem(
+  STORAGE_KEY,
+  JSON.stringify(tasks.map(task => ({
+    id: task.id,
+    title: task.title,
+    priority: task.priority,
+    completed: task.completed
+  })))
+);
+    return true;
+  } catch (error) {
+    taskMessage.textContent = "Could not save tasks.";
+    return false;
   }
 }
-const taskList = document.createElement("ul");
 
-const taskItem = document.createElement("li");
+function loadTasks() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
 
-taskItem.textContent = "Learn JavaScript DOM";
+    if (!saved) return;
 
-taskList.appendChild(taskItem);
+    const parsed = JSON.parse(saved);
 
-document.body.appendChild(taskList);
-function getVisibleTasks(tasks, query, status) {
-  return tasks.filter(function (task) {
-    const matchesSearch = task.title.toLowerCase().includes(query.toLowerCase());
+    if (!Array.isArray(parsed)) {
+      throw new Error("Invalid task data");
+    }
+
+    tasks = parsed
+      .filter(task =>
+        task &&
+        Number.isFinite(task.id) &&
+        typeof task.title === "string" &&
+        task.title.trim() !== "" &&
+        typeof task.completed === "boolean" &&
+        ["low", "medium", "high"].includes(task.priority)
+      )
+      .map(item => {
+        const task = new Task(item.id, item.title, item.priority);
+
+        if (item.completed) task.toggle();
+
+        return task;
+      });
+  } catch (error) {
+    tasks = [];
+    taskMessage.textContent =
+      "Saved data was damaged. Starting with an empty task list.";
+  }
+}
+
+function normalizeSuggestions(data) {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data
+    .filter(item =>
+      item &&
+      typeof item.title === "string" &&
+      item.title.trim() !== ""
+    )
+    .slice(0, 5)
+    .map((item, index) => ({
+      id: item.id ?? index + 1,
+      title: item.title.trim()
+    }));
+}
+function getVisibleTasks(allTasks, query, status) {
+  return allTasks.filter(task => {
+    const matchesSearch =
+      task.title.toLowerCase().includes(query.trim().toLowerCase());
 
     const matchesStatus =
       status === "all" ||
-      (status === "open" && task.completed === false) ||
-      (status === "completed" && task.completed === true);
+      (status === "open" && !task.completed) ||
+      (status === "completed" && task.completed);
 
     return matchesSearch && matchesStatus;
   });
 }
 function renderTasks() {
+  const visibleTasks = getVisibleTasks(
+    tasks,
+    searchQuery,
+    currentFilter
+  );
+
   taskList.innerHTML = "";
 
-   const matchingTasks = getVisibleTasks(tasks, searchQuery, currentFilter);
-   if (matchingTasks.length === 0) {
-  const emptyMessage = document.createElement("li");
-  emptyMessage.textContent = "No tasks yet";
-  taskList.appendChild(emptyMessage);
-}
+  if (visibleTasks.length === 0) {
+    const message = document.createElement("li");
+    message.textContent = "No tasks found.";
+    taskList.appendChild(message);
+  }
 
-matchingTasks.forEach(function (task) {
-    const taskItem = document.createElement("li");
-    taskItem.dataset.taskId = task.id;
-    taskItem.textContent = task.title;
-    const completeCheckbox = document.createElement("input");
+  visibleTasks.forEach(task => {
+    const item = document.createElement("li");
 
-completeCheckbox.type = "checkbox";
-completeCheckbox.checked = task.completed;
-completeCheckbox.dataset.action = "complete";
+    const title = document.createElement("span");
+    title.textContent = task.title;
 
-taskItem.appendChild(completeCheckbox);
+    if (task.completed) {
+      title.textContent += " (Completed)";
+    }
+  const checkbox = document.createElement("input");
+checkbox.type = "checkbox";
+checkbox.checked = task.completed;
+checkbox.setAttribute("aria-label", `Complete ${task.title}`);
 
-    const deleteButton = document.createElement("button");
-    deleteButton.textContent = "Delete";
-    deleteButton.dataset.action = "delete";
-
-    taskItem.appendChild(deleteButton);
-    taskList.appendChild(taskItem);
-  });
-}
-loadTasks();
-renderTasks();
-
-const taskForm = document.querySelector("#task-form");
-const taskInput = document.querySelector("#task-input");
-const taskError = document.querySelector("#task-error");
-const searchInput = document.querySelector("#search-input");
-const statusFilter = document.querySelector("#status-filter");
-searchInput.addEventListener("input", function () {
-  searchQuery = searchInput.value.trim();
+checkbox.addEventListener("change", function() {
+  task.toggle();
+  saveTasks();
   renderTasks();
 });
-taskList.addEventListener("change", function (event) {
-  if (event.target.dataset.action === "complete") {
-    const taskId = Number(event.target.closest("li").dataset.taskId);
 
-    tasks = tasks.map(function (task) {
-      if (task.id === taskId) {
-        return { ...task, completed: event.target.checked };
-      }
+item.appendChild(checkbox);
+
+    const priority = document.createElement("span");
+    priority.textContent = ` — Priority: ${task.priority}`;
+
+    item.appendChild(title);
+    item.appendChild(priority);
+    const editButton = document.createElement("button");
+editButton.textContent = "Edit";
+
+editButton.addEventListener("click", function() {
+  const newTitle = prompt("Enter the new task title:", task.title);
+
+  if (newTitle === null) return;
+
+  if (!newTitle.trim()) {
+    taskMessage.textContent = "Task title cannot be blank.";
+    return;
+  }
+
+  if (tasks.some(otherTask =>
+    otherTask.id !== task.id &&
+    otherTask.title.toLowerCase() === newTitle.trim().toLowerCase()
+  )) {
+    taskMessage.textContent = "This task already exists.";
+    return;
+  }
+
+  task.rename(newTitle);
+  saveTasks();
+  renderTasks();
+  taskMessage.textContent = "Task updated successfully.";
+});
+
+const deleteButton = document.createElement("button");
+deleteButton.textContent = "Delete";
+
+deleteButton.addEventListener("click", function() {
+  if (!confirm("Are you sure you want to delete this task?")) return;
+
+  lastDeletedTask = {
+    task: task,
+    index: tasks.indexOf(task)
+  };
+
+  tasks = tasks.filter(item => item.id !== task.id);
+
+  saveTasks();
+  renderTasks();
+  taskMessage.textContent = "Task deleted. You can undo this action.";
+});
+
+item.appendChild(editButton);
+item.appendChild(deleteButton);
+    taskList.appendChild(item);
+  });
+
+  const completedCount = tasks.filter(
+    task => task.completed
+  ).length;
+
+  const percentage = tasks.length === 0
+    ? 0
+    : Math.round((completedCount / tasks.length) * 100);
+
+  taskCount.textContent = `Total: ${tasks.length}`;
+  completionRate.textContent = `Completed: ${percentage}%`;
+}
+taskForm.addEventListener("submit", function(event) {
+  event.preventDefault();
+
+  const title = taskInput.value.trim();
+  const priority = priorityInput.value;
+
+  if (!title) {
+    taskMessage.textContent = "Please enter a task title.";
+    return;
+  }
+
+  if (tasks.some(task =>
+    task.title.toLowerCase() === title.toLowerCase()
+  )) {
+    taskMessage.textContent = "This task already exists.";
+    return;
+  }
+
+  const newTask = new Task(
+    Date.now(),
+    title,
+    priority
+  );
+
+  tasks.push(newTask);
+  saveTasks();
+  renderTasks();
+
+  taskInput.value = "";
+  taskMessage.textContent = "Task added successfully.";
+});
+searchInput.addEventListener("input", function() {
+  searchQuery = searchInput.value;
+  renderTasks();
+});
+
+statusFilter.addEventListener("change", function() {
+  currentFilter = statusFilter.value;
+  renderTasks();
+});
+undoButton.addEventListener("click", function() {
+  if (!lastDeletedTask) {
+    taskMessage.textContent = "There is no task to restore.";
+    return;
+  }
+
+  tasks.splice(
+    lastDeletedTask.index,
+    0,
+    lastDeletedTask.task
+  );
+
+  lastDeletedTask = null;
+
+  saveTasks();
+  renderTasks();
+
+  taskMessage.textContent = "Task restored successfully.";
+});
+
+exportButton.addEventListener("click", function() {
+  const taskData = tasks.map(task => ({
+    id: task.id,
+    title: task.title,
+    priority: task.priority,
+    completed: task.completed
+  }));
+
+  const jsonData = JSON.stringify(taskData, null, 2);
+
+  const blob = new Blob([jsonData], {
+    type: "application/json"
+  });
+
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "focus-board-tasks.json";
+  link.click();
+
+  URL.revokeObjectURL(url);
+
+  taskMessage.textContent = "Tasks exported successfully.";
+});
+  exportButton.addEventListener("click", function() {
+  const taskData = tasks.map(task => ({
+    id: task.id,
+    title: task.title,
+    priority: task.priority,
+    completed: task.completed
+  }));
+
+  const jsonData = JSON.stringify(taskData, null, 2);
+
+  const blob = new Blob([jsonData], {
+    type: "application/json"
+  });
+
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "focus-board-tasks.json";
+  link.click();
+
+  URL.revokeObjectURL(url);
+
+  taskMessage.textContent = "Tasks exported successfully.";
+});
+importInput.addEventListener("change", async function() {
+  const file = importInput.files[0];
+
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const importedData = JSON.parse(text);
+
+    if (!Array.isArray(importedData)) {
+      throw new Error("The file must contain a task array.");
+    }
+
+    const validTasks = importedData.every(task =>
+      task &&
+      Number.isFinite(task.id) &&
+      typeof task.title === "string" &&
+      task.title.trim() !== "" &&
+      typeof task.completed === "boolean" &&
+      ["low", "medium", "high"].includes(task.priority)
+    );
+
+    if (!validTasks) {
+      throw new Error("The file contains invalid tasks.");
+    }
+
+    const importedTasks = importedData.map(item => {
+      const task = new Task(item.id, item.title, item.priority);
+
+      if (item.completed) task.toggle();
 
       return task;
     });
 
-    saveTasks();
+    if (!confirm("Importing will replace your current tasks. Continue?")) {
+      return;
+    }
+
+    const previousTasks = tasks;
+    tasks = importedTasks;
+
+    if (!saveTasks()) {
+      tasks = previousTasks;
+      throw new Error("Could not save imported tasks.");
+    }
+
+    lastDeletedTask = null;
     renderTasks();
-  }
-});
-statusFilter.addEventListener("change", function () {
-  currentFilter = statusFilter.value;
-  renderTasks();
-});
-function validateTaskInput(title) {
-  const trimmedTitle = title.trim();
+    taskMessage.textContent = "Tasks imported successfully.";
 
-  return trimmedTitle.length >= 1 && trimmedTitle.length <= 80;
-}
-
-taskForm.addEventListener("submit", function (event) {
-  event.preventDefault();
-
-  const newTitle = taskInput.value.trim();
-if (!validateTaskInput(newTitle)) {
-  taskError.textContent = "Please enter a task between 1 and 80 characters.";
-  taskInput.focus();
-  return;
-}
-console.log("Tasks being checked:", tasks);
-  const alreadyExists = tasks.some(function (task) {
-    return task.title.trim().toLowerCase() === newTitle.toLowerCase();
-  });
-
-if (alreadyExists) {
-  taskError.textContent = "This task already exists. Please enter a different title.";
-  taskInput.focus();
-  return;
-}
-
-const newTask = {
-  id: Date.now(),
-  title: taskInput.value.trim(),
-  completed: false
-};
-
-tasks.push(newTask);
-saveTasks();
-renderTasks();
-
-taskError.textContent = "Task added successfully!";
-taskInput.focus();
-  
-taskInput.value = "";
-});
-const deleteButton = document.createElement("button");
-
-deleteButton.textContent = "Delete";
-
-deleteButton.dataset.action = "delete";
-taskItem.appendChild(deleteButton);
-
-taskList.addEventListener("click", function (event) {
-  const actionButton = event.target.closest("button[data-action]");
-
-  if (!actionButton) {
-    return;
+  } catch (error) {
+    taskMessage.textContent = "Import failed: " + error.message;
   }
 
-  if (actionButton.dataset.action === "delete") {
-  const taskId = Number(actionButton.closest("li").dataset.taskId);
-
-  tasks = tasks.filter(function (task) {
-    return task.id !== taskId;
-  });
-  
- saveTasks(); 
-
-  renderTasks();
-}
+  importInput.value = "";
 });
-localStorage.setItem("myTask", "Learn JavaScript");
+suggestionButton.addEventListener("click", loadSuggestions);
 
-const savedTask = localStorage.getItem("myTask");
+async function loadSuggestions() {
+  suggestionButton.disabled = true;
+  suggestionStatus.textContent = "Loading suggestions...";
+  suggestionList.innerHTML = "";
 
-console.log(savedTask);
-const task = {
-  title: "Practice JavaScript",
-  completed: false
-};
+  const currentRequest = ++requestNumber;
 
-const taskText = JSON.stringify(task);
+  if (suggestionController) {
+    suggestionController.abort();
+  }
 
-localStorage.setItem("savedTask", taskText);
+  suggestionController = new AbortController();
 
-const loadedTask = JSON.parse(localStorage.getItem("savedTask"));
+  try {
+    const [todosResponse, postsResponse] = await Promise.all([
+      fetch("https://jsonplaceholder.typicode.com/todos?_limit=5", {
+        signal: suggestionController.signal
+      }),
+      fetch("https://jsonplaceholder.typicode.com/posts?_limit=5", {
+        signal: suggestionController.signal
+      })
+    ]);
 
-console.log(loadedTask);
-console.log(loadedTask.title);
+    if (!todosResponse.ok || !postsResponse.ok) {
+      throw new Error("Could not load suggestions.");
+    }
+
+    const [todosData, postsData] = await Promise.all([
+      todosResponse.json(),
+      postsResponse.json()
+    ]);
+
+    const suggestions = normalizeSuggestions([
+      ...todosData,
+      ...postsData
+    ]);
+
+    if (currentRequest !== requestNumber) return;
+
+    if (suggestions.length === 0) {
+      throw new Error("No valid suggestions were found.");
+    }
+
+    suggestions.forEach(suggestion => {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+
+      button.textContent = suggestion.title;
+
+      button.addEventListener("click", function() {
+        taskInput.value = suggestion.title;
+        taskInput.focus();
+      });
+
+      item.appendChild(button);
+      suggestionList.appendChild(item);
+    });
+
+    suggestionStatus.textContent = "Suggestions loaded successfully.";
+
+  } catch (error) {
+    if (error.name === "AbortError") return;
+
+    suggestionStatus.textContent =
+      "Could not load suggestions. Check your internet and try again.";
+
+  } finally {
+    if (currentRequest === requestNumber) {
+      suggestionButton.disabled = false;
+      suggestionController = null;
+    }
+  }
+}
