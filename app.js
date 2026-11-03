@@ -1,0 +1,200 @@
+const message = document.querySelector("#message");
+
+console.log(message);
+message.textContent = "JavaScript has changed this message!";
+const button = document.querySelector("#change-message-btn");
+
+button.addEventListener("click", function () {
+  message.textContent = "You clicked the button! Well done!";
+});
+let tasks = [];
+let searchQuery = "";
+let currentFilter = "all";
+function saveTasks() {
+  localStorage.setItem("day3Tasks", JSON.stringify(tasks));
+}
+function loadTasks() {
+  const savedTasks = localStorage.getItem("day3Tasks");
+
+  if (savedTasks) {
+    try {
+      const parsedTasks = JSON.parse(savedTasks);
+
+      if (Array.isArray(parsedTasks)) {
+        tasks = parsedTasks;
+      } else {
+        tasks = [];
+      }
+    } catch (error) {
+      tasks = [];
+    }
+  }
+}
+const taskList = document.createElement("ul");
+
+const taskItem = document.createElement("li");
+
+taskItem.textContent = "Learn JavaScript DOM";
+
+taskList.appendChild(taskItem);
+
+document.body.appendChild(taskList);
+function getVisibleTasks(tasks, query, status) {
+  return tasks.filter(function (task) {
+    const matchesSearch = task.title.toLowerCase().includes(query.toLowerCase());
+
+    const matchesStatus =
+      status === "all" ||
+      (status === "open" && task.completed === false) ||
+      (status === "completed" && task.completed === true);
+
+    return matchesSearch && matchesStatus;
+  });
+}
+function renderTasks() {
+  taskList.innerHTML = "";
+
+   const matchingTasks = getVisibleTasks(tasks, searchQuery, currentFilter);
+   if (matchingTasks.length === 0) {
+  const emptyMessage = document.createElement("li");
+  emptyMessage.textContent = "No tasks yet";
+  taskList.appendChild(emptyMessage);
+}
+
+matchingTasks.forEach(function (task) {
+    const taskItem = document.createElement("li");
+    taskItem.dataset.taskId = task.id;
+    taskItem.textContent = task.title;
+    const completeCheckbox = document.createElement("input");
+
+completeCheckbox.type = "checkbox";
+completeCheckbox.checked = task.completed;
+completeCheckbox.dataset.action = "complete";
+
+taskItem.appendChild(completeCheckbox);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = "Delete";
+    deleteButton.dataset.action = "delete";
+
+    taskItem.appendChild(deleteButton);
+    taskList.appendChild(taskItem);
+  });
+}
+loadTasks();
+renderTasks();
+
+const taskForm = document.querySelector("#task-form");
+const taskInput = document.querySelector("#task-input");
+const taskError = document.querySelector("#task-error");
+const searchInput = document.querySelector("#search-input");
+const statusFilter = document.querySelector("#status-filter");
+searchInput.addEventListener("input", function () {
+  searchQuery = searchInput.value.trim();
+  renderTasks();
+});
+taskList.addEventListener("change", function (event) {
+  if (event.target.dataset.action === "complete") {
+    const taskId = Number(event.target.closest("li").dataset.taskId);
+
+    tasks = tasks.map(function (task) {
+      if (task.id === taskId) {
+        return { ...task, completed: event.target.checked };
+      }
+
+      return task;
+    });
+
+    saveTasks();
+    renderTasks();
+  }
+});
+statusFilter.addEventListener("change", function () {
+  currentFilter = statusFilter.value;
+  renderTasks();
+});
+function validateTaskInput(title) {
+  const trimmedTitle = title.trim();
+
+  return trimmedTitle.length >= 1 && trimmedTitle.length <= 80;
+}
+
+taskForm.addEventListener("submit", function (event) {
+  event.preventDefault();
+
+  const newTitle = taskInput.value.trim();
+if (!validateTaskInput(newTitle)) {
+  taskError.textContent = "Please enter a task between 1 and 80 characters.";
+  taskInput.focus();
+  return;
+}
+console.log("Tasks being checked:", tasks);
+  const alreadyExists = tasks.some(function (task) {
+    return task.title.trim().toLowerCase() === newTitle.toLowerCase();
+  });
+
+if (alreadyExists) {
+  taskError.textContent = "This task already exists. Please enter a different title.";
+  taskInput.focus();
+  return;
+}
+
+const newTask = {
+  id: Date.now(),
+  title: taskInput.value.trim(),
+  completed: false
+};
+
+tasks.push(newTask);
+saveTasks();
+renderTasks();
+
+taskError.textContent = "Task added successfully!";
+taskInput.focus();
+  
+taskInput.value = "";
+});
+const deleteButton = document.createElement("button");
+
+deleteButton.textContent = "Delete";
+
+deleteButton.dataset.action = "delete";
+taskItem.appendChild(deleteButton);
+
+taskList.addEventListener("click", function (event) {
+  const actionButton = event.target.closest("button[data-action]");
+
+  if (!actionButton) {
+    return;
+  }
+
+  if (actionButton.dataset.action === "delete") {
+  const taskId = Number(actionButton.closest("li").dataset.taskId);
+
+  tasks = tasks.filter(function (task) {
+    return task.id !== taskId;
+  });
+  
+ saveTasks(); 
+
+  renderTasks();
+}
+});
+localStorage.setItem("myTask", "Learn JavaScript");
+
+const savedTask = localStorage.getItem("myTask");
+
+console.log(savedTask);
+const task = {
+  title: "Practice JavaScript",
+  completed: false
+};
+
+const taskText = JSON.stringify(task);
+
+localStorage.setItem("savedTask", taskText);
+
+const loadedTask = JSON.parse(localStorage.getItem("savedTask"));
+
+console.log(loadedTask);
+console.log(loadedTask.title);
