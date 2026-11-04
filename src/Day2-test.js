@@ -314,26 +314,10 @@ class TaskList {
   }
 
   getOpenTasks() {
- const taskList = new TaskList();
-
-const taskA = new Task(10, "Study arrays", "high");
-const taskB = new Task(11, "Practise functions", "medium");
-
-taskList.add(taskA);
-taskList.add(taskB);
-
-console.log("Found task:", taskList.findById(10).title);
-console.log("Open tasks:", taskList.getOpenTasks().length);
-
-taskA.complete();
-
-console.log("Open tasks after completing one:", taskList.getOpenTasks().length);
-
-taskList.remove(11);
-
-console.log("Remaining open tasks:", taskList.getOpenTasks().length);   return this.#tasks.filter(task => !task.completed);
+    return this.#tasks.filter(task => !task.completed);
   }
 }
+
 // TEST THE TASKLIST CLASS
 
 const taskList = new TaskList();
